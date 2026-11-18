@@ -1,0 +1,47 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="annotated-doc" />
+          <option value="annotated-types" />
+          <option value="anyio" />
+          <option value="attrs" />
+          <option value="cffi" />
+          <option value="click" />
+          <option value="cryptography" />
+          <option value="h11" />
+          <option value="httpcore2" />
+          <option value="httpx2" />
+          <option value="idna" />
+          <option value="jsonschema" />
+          <option value="jsonschema-specifications" />
+          <option value="markdown-it-py" />
+          <option value="mcp" />
+          <option value="mcp-types" />
+          <option value="mdurl" />
+          <option value="opentelemetry-api" />
+          <option value="pycparser" />
+          <option value="pydantic" />
+          <option value="pydantic-core" />
+          <option value="pygments" />
+          <option value="pyjwt" />
+          <option value="python-dotenv" />
+          <option value="python-multipart" />
+          <option value="referencing" />
+          <option value="rich" />
+          <option value="rpds-py" />
+          <option value="shellingham" />
+          <option value="sse-starlette" />
+          <option value="starlette" />
+          <option value="truststore" />
+          <option value="typer" />
+          <option value="typing-extensions" />
+          <option value="typing-inspection" />
+          <option value="uvicorn" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
