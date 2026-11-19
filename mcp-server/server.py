@@ -9,6 +9,7 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 import db
+import weather
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 
@@ -177,6 +178,12 @@ def cancel_booking(booking_id: Annotated[int, Field(ge=1)]) -> str:
         )
     db.set_status(booking_id, "canceled")
     return f"Бронь номер {booking_id} для {booking['guest_name']} отменена."
+
+@mcp.tool()
+async def get_weather(check_in: str, check_out: str) -> str:
+    arrival, departure, _ = check_range(check_in, check_out)
+    forecast = await weather.fetch_forecast(arrival, departure)
+    return weather.format_forecast(forecast)
 
 @mcp.resource("bookings://list")
 def bookings_list() -> str:
