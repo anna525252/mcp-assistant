@@ -1,19 +1,49 @@
+import hmac
 import json
 import logging
+import os
 import sys
 from datetime import date
 from typing import Annotated
 
 from pydantic import Field
 from mcp.server import MCPServer
+from mcp.server.auth.provider import AccessToken, TokenVerifier
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.mcpserver.exceptions import ToolError
 
 import db
 import weather
 
-logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%d.%m.%Y %H:%M:%S")
 
-mcp = MCPServer("Tour Agency")
+log = logging.getLogger("tour_agency")
+
+HOST = "127.0.0.1"
+PORT = 8000
+MCP_TOKEN = os.environ.get("MCP_TOKEN")
+if not MCP_TOKEN:
+    log.error("Не задана переменная окружения MCP_TOKEN, сервер не запущен")
+    raise SystemExit("Не задана переменная окружения MCP_TOKEN.")
+
+
+class BookingTokenVerifier(TokenVerifier):
+    async def verify_token(self, token: str) -> AccessToken | None:
+        if not hmac.compare_digest(token.encode(), MCP_TOKEN.encode()):
+            log.warning("Отказ в доступе: неверный токен")
+            return None
+        return AccessToken(token=token, client_id="web-app", scopes=["booking"])
+
+
+mcp = MCPServer(
+    "Tour Agency",
+    token_verifier=BookingTokenVerifier(),
+    auth=AuthSettings(
+        issuer_url=f"http://{HOST}:{PORT}",
+        resource_server_url=f"http://{HOST}:{PORT}/mcp",
+        required_scopes=["booking"],
+    ),
+)
 
 MAX_STAY_NIGHTS = 60
 MAX_NAME_LEN = 100
@@ -59,8 +89,8 @@ def find_service(name: str) -> dict:
     for service in services:
         if normalize(service["name"]) == normalize(name):
             return service
-        names = ", ".join(service["name"] for s in services)
-        raise ToolError(f"Услуги {name} нет в прайсе. Доступные услуги: {names}.")
+    names = ", ".join(service["name"] for s in services)
+    raise ToolError(f"Услуги {name} нет в прайсе. Доступные услуги: {names}.")
 
 def load_booking(booking_id: int) -> dict:
     booking = db.get_booking(booking_id)
@@ -104,7 +134,7 @@ def calculate_stay_price(cabin: str, check_in: str, check_out: str) -> str:
 def get_occupancy(start: str, end: str) -> str:
     period_start, period_end, _ = check_range(start, end)
     stats = db.occupancy(period_start, period_end)
-    return(
+    return (
         f"Загрузка за {period_start} - {period_end}: {stats['percent']}% "
         f"Занято {stats['occupied_nights']} из {stats['total_nights']} ночей,"
         f"(домиков: {stats['cabins']}, дней: {stats['days']}."
@@ -127,6 +157,7 @@ def create_booking(cabin: str, guest_name: str, guests_count: Annotated[int, Fie
             "Выберите другие даты или другой домик."
         )
     total = nights * found["price_per_night"]
+    log.info("Создана бронь №%s", booking_id)
     return (
         f"Бронь №{booking_id}: {name}, домик «{found['name']}», "
         f"{ci} - {co}, гостей: {guests_count}, проживание {total} ₽."
@@ -141,8 +172,8 @@ def add_service(booking_id: Annotated[int, Field(ge=1)], service: str, quantity:
             f"статус «{booking['status']}»."
         )
     found = find_service(service)
-    db.add_service(booking_id, found["id"], quantity)
-    total = db.get_service(booking_id)["totals"]["total"]
+    db.add_booking_service(booking_id, found["id"], quantity)
+    total = db.get_booking(booking_id)["totals"]["total"]
     return (
         f"К брони №{booking_id} добавлено: {found['name']} в количестве {quantity}. "
         f"Общая сумма: {total} рублей."
@@ -155,7 +186,7 @@ def check_in_guest(booking_id: Annotated[int, Field(ge=1)]) -> str:
         raise ToolError(
             f"Бронь №{booking_id} нельзя заселить: гость уже заселён или бронь закрыта."
         )
-    db.set_guest(booking_id, "checked_in")
+    db.set_status(booking_id, "checked_in")
     return f"Гость {booking['guest_name']} заселён в домик «{booking['cabin_name']}»."
 
 @mcp.tool()
@@ -167,6 +198,12 @@ def check_out_guest(booking_id: Annotated[int, Field(ge=1)]) -> str:
             f"коттедж «{booking['cabin_name']}» сейчас пуст. "
             "Выселить можно только заселённого гостя."
         )
+    db.set_status(booking_id, "checked_out")
+    total = booking["totals"]["total"]
+    return (
+        f"Гость {booking['guest_name']} выселен из домика «{booking['cabin_name']}». "
+        f"К оплате: {total} рублей."
+    )
 
 @mcp.tool()
 def cancel_booking(booking_id: Annotated[int, Field(ge=1)]) -> str:
@@ -176,7 +213,8 @@ def cancel_booking(booking_id: Annotated[int, Field(ge=1)]) -> str:
             f"Бронь №{booking_id} нельзя отменить: статус «{booking['status']}». "
             "Отменить можно только бронь до заселения."
         )
-    db.set_status(booking_id, "canceled")
+    db.set_status(booking_id, "cancelled")
+    log.info("Отменена бронь №%s", booking_id)
     return f"Бронь номер {booking_id} для {booking['guest_name']} отменена."
 
 @mcp.tool()
@@ -213,4 +251,5 @@ def plan_stay(guests: str, check_in: str, check_out: str) -> str:
 
 if __name__ == "__main__":
     db.init_db()
+    log.info("Сервер запущен на %s:%s", HOST, PORT)
     mcp.run(transport="streamable-http")

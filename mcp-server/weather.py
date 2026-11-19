@@ -39,7 +39,7 @@ async def fetch_forecast(start_date: str, end_date: str) -> dict:
     except httpx2.TimeoutException:
         raise ToolError("Погода недоступна: сервис не отвечает.")
     except httpx2.HTTPStatusError as error:
-        raise ToolError(f"Сервис погоды вернул ошибка {error.response.status_code}. "
+        raise ToolError(f"Сервис погоды вернул ошибку {error.response.status_code}. "
                         f"Попробуйте позже.")
     except httpx2.RequestError:
         raise ToolError("Не удалось связаться с сервисом погоды. Проверьте подключение к сети.")
