@@ -82,7 +82,7 @@ def find_cabin(name: str) -> dict:
         if normalize(cabin["name"]) == normalize(name):
             return cabin
     names = ", ".join(c["name"] for c in cabins)
-    raise ToolError(f"Домика «{name}» нет в каталоге. Доступыне услуги: {names}.")
+    raise ToolError(f"Домика «{name}» нет в каталоге. Доступные коттеджи: {names}.")
 
 def find_service(name: str) -> dict:
     services = db.list_services()
